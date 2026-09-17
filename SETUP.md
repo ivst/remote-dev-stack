@@ -17,6 +17,7 @@ PROJECTS_DIR=/home/developer/projects
 OPENCODE_PORT=4096
 OPENCODE_USERNAME=opencode
 INSTALL_DOCKER=1
+INSTALL_GH=1
 INSTALL_OPENCODE=1
 INSTALL_OPENCODE_SERVICE=1
 CREATE_SWAP_GB=4
@@ -25,7 +26,7 @@ ALLOW_WEB=1
 SSH_ALLOW_CIDRS=
 ```
 
-Do not place `OPENCODE_SERVER_PASSWORD` in the repository. `install-opencode-service.sh` generates a password if none is provided and stores it in `/etc/remote-dev-stack/opencode.env` with mode `0600`.
+Do not place `OPENCODE_SERVER_PASSWORD`, `GH_TOKEN`, GitHub personal access tokens or SSH private keys in the repository. `install-opencode-service.sh` generates an OpenCode password if none is provided and stores it in `/etc/remote-dev-stack/opencode.env` with mode `0600`.
 
 ## 2. Remote host: Ubuntu VPS
 
@@ -38,12 +39,13 @@ sudo ./scripts/bootstrap-host.sh remote
 The script:
 
 1. installs SSH/base utilities;
-2. creates `DEV_USER` when needed;
-3. creates `PROJECTS_DIR` with correct ownership;
-4. installs Docker/Compose when enabled;
-5. optionally creates swap;
-6. installs OpenCode for `DEV_USER` when enabled;
-7. leaves firewall policy unchanged unless `CONFIGURE_UFW=1`.
+2. installs GitHub CLI (`gh`) when `INSTALL_GH=1`;
+3. creates `DEV_USER` when needed;
+4. creates `PROJECTS_DIR` with correct ownership;
+5. installs Docker/Compose when enabled;
+6. optionally creates swap;
+7. installs OpenCode for `DEV_USER` when enabled;
+8. leaves firewall policy unchanged unless `CONFIGURE_UFW=1`.
 
 Install the OpenCode service:
 
@@ -96,7 +98,77 @@ sudo ./scripts/bootstrap-host.sh remote
 
 The script refuses to enable restrictive UFW rules if `SSH_ALLOW_CIDRS` is empty.
 
-## 3. Clone projects
+## 3. GitHub SSH + GitHub CLI
+
+Keep Git transport and GitHub API authentication separate:
+
+```text
+git clone / fetch / pull / push  -> SSH key
+gh pr / issue / api / release   -> gh authentication
+```
+
+First verify that the development user's SSH key is accepted by GitHub:
+
+```bash
+sudo -u developer -H ssh -T git@github.com
+```
+
+A successful GitHub response looks like:
+
+```text
+Hi USER! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+GitHub intentionally returns no shell; that message confirms SSH authentication.
+
+If `gh` was enabled in `.env`, `bootstrap-host.sh` installs it from the configured Ubuntu/Debian apt repositories. Verify:
+
+```bash
+gh --version
+```
+
+Then authenticate **as the development user**, not root:
+
+```bash
+sudo -u developer -H ./scripts/setup-github-cli.sh
+```
+
+The helper:
+
+- checks GitHub SSH authentication;
+- checks whether `gh` is already authenticated;
+- starts browser/device login when authentication is missing;
+- keeps `gh` Git protocol set to SSH;
+- verifies the GitHub API account with `gh api user`.
+
+Equivalent manual setup:
+
+```bash
+sudo -u developer -H gh auth login --hostname github.com --web --git-protocol ssh
+sudo -u developer -H gh auth status --hostname github.com
+sudo -u developer -H gh config set git_protocol ssh --host github.com
+```
+
+If interactive browser authentication is impossible, you may temporarily export a token in the shell and run the helper:
+
+```bash
+export GH_TOKEN='...'
+./scripts/setup-github-cli.sh
+unset GH_TOKEN
+```
+
+Do not put `GH_TOKEN` in `.env`. The helper can import it into `gh` authentication storage for the current user, but the token itself should not be committed or left in shell configuration unless that is an explicit administrative choice.
+
+Useful verification commands:
+
+```bash
+gh auth status
+gh api user --jq .login
+gh repo view OWNER/PROJECT
+gh pr list --repo OWNER/PROJECT
+```
+
+## 4. Clone projects
 
 Work under one parent directory:
 
@@ -109,7 +181,7 @@ exit
 
 Each client then opens the same checkout. Git remains the source of truth; there is no need to sync separate working copies between desktop and laptop.
 
-## 4. Register projects in OpenCode
+## 5. Register projects in OpenCode
 
 Normally OpenCode learns projects as they are opened. To register all Git repositories under `PROJECTS_DIR` in one pass:
 
@@ -130,7 +202,7 @@ HOME=/home/developer
 WorkingDirectory=/home/developer/projects
 ```
 
-## 5. VS Code Remote SSH
+## 6. VS Code Remote SSH
 
 On the remote host nothing else is normally required. VS Code installs its server automatically after the first SSH connection.
 
@@ -166,7 +238,7 @@ File → Open Folder... → /home/developer/projects/project-name
 
 Do not install desktop VS Code on the VPS just for Remote SSH.
 
-## 6. JetBrains Remote Development
+## 7. JetBrains Remote Development
 
 The same host can be used with PhpStorm/IntelliJ Remote Development.
 
@@ -193,7 +265,7 @@ JetBrains automatically deploys the remote backend. No full desktop IDE needs to
 
 For medium/large projects, use a host with fast CPU cores, local SSD and swap. If indexing drives sustained load close to the CPU limit, moving to a faster VM is preferable to adding RAM that remains unused.
 
-## 7. Local Linux/WSL stand
+## 8. Local Linux/WSL stand
 
 To build the same directory layout locally:
 
@@ -201,7 +273,13 @@ To build the same directory layout locally:
 sudo ./scripts/bootstrap-host.sh local
 ```
 
-Local mode installs the same base development packages and optionally Docker/OpenCode, but does not enable UFW or start an OpenCode system service unless explicitly requested.
+Local mode installs the same base development packages and optionally Docker/OpenCode/GitHub CLI, but does not enable UFW or start an OpenCode system service unless explicitly requested.
+
+Authenticate `gh` as the local development user:
+
+```bash
+./scripts/setup-github-cli.sh
+```
 
 Then:
 
@@ -224,7 +302,7 @@ OPENCODE_SERVER_PASSWORD='temporary-local-password' \
   opencode serve --hostname 127.0.0.1 --port 4096
 ```
 
-## 8. FASTPANEL/nginx and a test domain
+## 9. FASTPANEL/nginx and a test domain
 
 For applications running in Docker, prefer publishing the container only on localhost:
 
@@ -253,12 +331,12 @@ Keep the OpenCode vhost additionally protected with an IP allowlist and/or Cloud
 
 For a test hostname:
 
-1. Create a proxied DNS record (orange cloud).
-2. Use **Full (strict)** TLS.
+1. Create a proxied DNS record (orange cloud) if you want Cloudflare proxying, or DNS-only if you only want Cloudflare as DNS provider.
+2. When proxied, use **Full (strict)** TLS.
 3. For private test environments, optionally create a Cloudflare Zero Trust Access application for the hostname.
 4. Keep origin-side HTTPS and application/reverse-proxy controls; Cloudflare is not a replacement for origin security.
 
-## 9. Health check
+## 10. Health check
 
 Run:
 
@@ -274,6 +352,8 @@ free -h
 df -h /
 docker version
 docker compose version
+gh auth status
+ssh -T git@github.com
 ss -lntup
 systemctl status opencode --no-pager
 ```
@@ -284,18 +364,18 @@ For interval CPU measurements install `sysstat` and use:
 pidstat -p PID 5 12
 ```
 
-## 10. Backups and rollback
+## 11. Backups and rollback
 
 Use both layers:
 
 - Git for project history.
 - VPS/provider snapshots for the whole environment.
 
-A useful snapshot point is immediately after SSH, Docker, firewall, OpenCode and the selected IDE remote workflow have been tested successfully.
+A useful snapshot point is immediately after SSH, Docker, GitHub CLI, firewall, OpenCode and the selected IDE remote workflow have been tested successfully.
 
 Before major upgrades to OpenCode, Docker, FASTPANEL or the OS, take another snapshot.
 
-## 11. Removal
+## 12. Removal
 
 Stop and disable OpenCode:
 
@@ -311,4 +391,4 @@ Remove its root-owned environment file:
 sudo rm -rf /etc/remote-dev-stack
 ```
 
-The scripts intentionally do not automatically remove Docker, the development user, projects, firewall rules, or IDE caches because doing so can destroy unrelated work.
+The scripts intentionally do not automatically remove Docker, GitHub CLI authentication, the development user, projects, firewall rules, or IDE caches because doing so can destroy unrelated work or credentials.
