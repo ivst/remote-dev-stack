@@ -45,6 +45,39 @@ else
 fi
 
 echo
+echo "== GitHub =="
+if command -v git >/dev/null 2>&1; then
+  ok "git installed: $(git --version 2>/dev/null)"
+else
+  fail "git missing"
+fi
+
+if id "$DEV_USER" >/dev/null 2>&1; then
+  SSH_GITHUB="$(sudo -u "$DEV_USER" -H ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)"
+  if grep -qi "successfully authenticated" <<< "$SSH_GITHUB"; then
+    ok "GitHub SSH authentication works for $DEV_USER"
+  else
+    warn "GitHub SSH authentication not confirmed for $DEV_USER"
+  fi
+fi
+
+if command -v gh >/dev/null 2>&1; then
+  ok "GitHub CLI installed: $(gh --version 2>/dev/null | head -n1)"
+  if id "$DEV_USER" >/dev/null 2>&1 && sudo -u "$DEV_USER" -H gh auth status --hostname github.com >/dev/null 2>&1; then
+    GH_LOGIN="$(sudo -u "$DEV_USER" -H gh api user --jq .login 2>/dev/null || true)"
+    if [[ -n "$GH_LOGIN" ]]; then
+      ok "gh authenticated as $GH_LOGIN"
+    else
+      ok "gh authentication is active for $DEV_USER"
+    fi
+  else
+    warn "gh is installed but not authenticated for $DEV_USER; run scripts/setup-github-cli.sh as that user"
+  fi
+else
+  warn "GitHub CLI (gh) not installed"
+fi
+
+echo
 echo "== Docker =="
 if command -v docker >/dev/null 2>&1; then
   ok "docker installed: $(docker --version 2>/dev/null)"
@@ -77,3 +110,4 @@ echo
 echo "== Recommendation =="
 echo "VS Code Remote SSH: remote desktop VS Code installation is not required."
 echo "JetBrains Remote Development: keep SFTP enabled; local SSD and swap are recommended."
+echo "GitHub: keep Git transport on SSH; use gh authentication for PR/issues/API operations."
