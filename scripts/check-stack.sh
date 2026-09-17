@@ -15,6 +15,18 @@ ok()   { printf 'OK   %s\n' "$*"; }
 warn() { printf 'WARN %s\n' "$*"; }
 fail() { printf 'FAIL %s\n' "$*"; }
 
+run_as_dev() {
+  if [[ "$(id -un)" == "$DEV_USER" ]]; then
+    "$@"
+  elif [[ $EUID -eq 0 ]]; then
+    sudo -u "$DEV_USER" -H "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo -u "$DEV_USER" -H "$@"
+  else
+    return 1
+  fi
+}
+
 echo "== System =="
 printf 'Kernel: '; uname -r
 printf 'Arch:   '; uname -m
@@ -53,7 +65,7 @@ else
 fi
 
 if id "$DEV_USER" >/dev/null 2>&1; then
-  SSH_GITHUB="$(sudo -u "$DEV_USER" -H ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)"
+  SSH_GITHUB="$(run_as_dev ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)"
   if grep -qi "successfully authenticated" <<< "$SSH_GITHUB"; then
     ok "GitHub SSH authentication works for $DEV_USER"
   else
@@ -63,8 +75,8 @@ fi
 
 if command -v gh >/dev/null 2>&1; then
   ok "GitHub CLI installed: $(gh --version 2>/dev/null | head -n1)"
-  if id "$DEV_USER" >/dev/null 2>&1 && sudo -u "$DEV_USER" -H gh auth status --hostname github.com >/dev/null 2>&1; then
-    GH_LOGIN="$(sudo -u "$DEV_USER" -H gh api user --jq .login 2>/dev/null || true)"
+  if id "$DEV_USER" >/dev/null 2>&1 && run_as_dev gh auth status --hostname github.com >/dev/null 2>&1; then
+    GH_LOGIN="$(run_as_dev gh api user --jq .login 2>/dev/null || true)"
     if [[ -n "$GH_LOGIN" ]]; then
       ok "gh authenticated as $GH_LOGIN"
     else
