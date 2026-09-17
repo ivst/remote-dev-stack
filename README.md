@@ -60,6 +60,7 @@ OpenCode Web's project picker may show `No folders found` on some versions even 
 ```text
 README.md
 SETUP.md
+FASTPANEL.md
 .env.example
 .gitignore
 scripts/
@@ -105,7 +106,7 @@ Then use either:
 - JetBrains: **Remote Development / Gateway → SSH Connection** and select the project directory.
 - OpenCode: browser/PWA through the protected reverse proxy, or TUI over SSH.
 
-See [SETUP.md](SETUP.md) for the full sequence, security notes, FASTPANEL/Cloudflare integration and rollback steps.
+See [SETUP.md](SETUP.md) for the full installation sequence and [FASTPANEL.md](FASTPANEL.md) for publishing test projects through localhost ports, FASTPANEL/nginx and optional Cloudflare Access.
 
 ## Security defaults
 
