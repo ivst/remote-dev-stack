@@ -16,6 +16,7 @@ fi
 DEV_USER="${DEV_USER:-developer}"
 PROJECTS_DIR="${PROJECTS_DIR:-/home/$DEV_USER/projects}"
 INSTALL_DOCKER="${INSTALL_DOCKER:-1}"
+INSTALL_GH="${INSTALL_GH:-1}"
 INSTALL_OPENCODE="${INSTALL_OPENCODE:-1}"
 INSTALL_OPENCODE_SERVICE="${INSTALL_OPENCODE_SERVICE:-1}"
 OPENCODE_INSTALL_URL="${OPENCODE_INSTALL_URL:-https://opencode.ai/install}"
@@ -39,6 +40,15 @@ apt-get update
 apt-get install -y \
   ca-certificates curl wget git openssh-server bash tar unzip zip jq rsync tmux htop \
   gnupg lsb-release build-essential ufw openssl
+
+if [[ "$INSTALL_GH" == "1" ]]; then
+  if apt-cache show gh >/dev/null 2>&1; then
+    apt-get install -y gh
+  else
+    echo "WARN: GitHub CLI package 'gh' is not available from the configured apt repositories." >&2
+    echo "      Install it from the official GitHub CLI repository, then run scripts/setup-github-cli.sh." >&2
+  fi
+fi
 
 systemctl enable --now ssh
 
@@ -125,6 +135,11 @@ if [[ "$MODE" == "remote" && "$INSTALL_OPENCODE_SERVICE" == "1" ]]; then
   echo
   echo "Base host is ready. Next run:"
   echo "  sudo $ROOT_DIR/scripts/install-opencode-service.sh"
+fi
+
+if [[ "$INSTALL_GH" == "1" && -x "$(command -v gh 2>/dev/null || true)" ]]; then
+  echo "GitHub CLI is installed. Authenticate it as $DEV_USER with:"
+  echo "  sudo -u $DEV_USER -H $ROOT_DIR/scripts/setup-github-cli.sh"
 fi
 
 echo
