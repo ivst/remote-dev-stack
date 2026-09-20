@@ -12,6 +12,7 @@ PROJECTS_DIR="${PROJECTS_DIR:-/home/$DEV_USER/projects}"
 OPENCODE_PORT="${OPENCODE_PORT:-4096}"
 OPENCODE_USERNAME="${OPENCODE_USERNAME:-opencode}"
 OPENCODE_SERVER_PASSWORD="${OPENCODE_SERVER_PASSWORD:-}"
+OPENCODE_MAJOR_VERSION="${OPENCODE_MAJOR_VERSION:-2}"
 
 if [[ $EUID -ne 0 ]]; then
   echo "Run with sudo/root: sudo $0" >&2
@@ -36,6 +37,13 @@ if [[ -z "$OPENCODE_BIN" || ! -x "$OPENCODE_BIN" ]]; then
   exit 1
 fi
 
+OPENCODE_VERSION="$(sudo -u "$DEV_USER" -H "$OPENCODE_BIN" --version 2>/dev/null || true)"
+if [[ "$OPENCODE_VERSION" != "$OPENCODE_MAJOR_VERSION".* ]]; then
+  echo "OpenCode $OPENCODE_VERSION is installed; this stack expects V$OPENCODE_MAJOR_VERSION." >&2
+  echo "Run: sudo $ROOT_DIR/scripts/upgrade-opencode-v2.sh" >&2
+  exit 1
+fi
+
 install -d -m 700 /etc/remote-dev-stack
 ENV_FILE=/etc/remote-dev-stack/opencode.env
 
@@ -56,7 +64,7 @@ chmod 600 "$ENV_FILE"
 
 cat > /etc/systemd/system/opencode.service <<UNIT
 [Unit]
-Description=OpenCode remote development server
+Description=OpenCode V2 remote development server
 After=network-online.target
 Wants=network-online.target
 
@@ -85,7 +93,8 @@ sleep 1
 systemctl --no-pager --full status opencode || true
 
 echo
-echo "OpenCode service installed."
+echo "OpenCode V2 service installed."
+echo "Version: $OPENCODE_VERSION"
 echo "URL on host: http://127.0.0.1:$OPENCODE_PORT"
 echo "Credentials: $ENV_FILE (mode 0600; password not printed)"
 echo "WorkingDirectory: $PROJECTS_DIR"
