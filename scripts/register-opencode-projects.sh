@@ -10,32 +10,25 @@ fi
 DEV_USER="${DEV_USER:-developer}"
 PROJECTS_DIR="${PROJECTS_DIR:-/home/$DEV_USER/projects}"
 OPENCODE_PORT="${OPENCODE_PORT:-4096}"
-OPENCODE_USERNAME="${OPENCODE_USERNAME:-opencode}"
-OPENCODE_SERVER_PASSWORD="${OPENCODE_SERVER_PASSWORD:-}"
-ENV_FILE=/etc/remote-dev-stack/opencode.env
 
-if [[ -z "$OPENCODE_SERVER_PASSWORD" && -r "$ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-fi
-
-if [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]]; then
-  read -rsp 'OpenCode password: ' OPENCODE_SERVER_PASSWORD
-  echo
-fi
+echo "OpenCode V2 does not use the V1 /project/current registration API."
+echo "Git repositories discovered under: $PROJECTS_DIR"
+echo
 
 found=0
 for dir in "$PROJECTS_DIR"/*; do
   [[ -d "$dir/.git" ]] || continue
   found=1
-  echo "Registering: $dir"
-  curl -fsS -G \
-    -u "$OPENCODE_USERNAME:$OPENCODE_SERVER_PASSWORD" \
-    --data-urlencode "directory=$dir" \
-    "http://127.0.0.1:$OPENCODE_PORT/project/current" >/dev/null
-  echo "  OK"
+  printf '%s\n' "$dir"
 done
 
 if [[ "$found" == "0" ]]; then
-  echo "No Git repositories found under $PROJECTS_DIR"
+  echo "No Git repositories found."
+  exit 0
 fi
+
+echo
+echo "Open a project with the V2 client, for example:"
+echo "  cd $PROJECTS_DIR/<project>"
+echo "  export OPENCODE_SERVER_PASSWORD='...'"
+echo "  opencode --server http://127.0.0.1:$OPENCODE_PORT"
