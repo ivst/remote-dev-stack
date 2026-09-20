@@ -19,7 +19,8 @@ INSTALL_DOCKER="${INSTALL_DOCKER:-1}"
 INSTALL_GH="${INSTALL_GH:-1}"
 INSTALL_OPENCODE="${INSTALL_OPENCODE:-1}"
 INSTALL_OPENCODE_SERVICE="${INSTALL_OPENCODE_SERVICE:-1}"
-OPENCODE_INSTALL_URL="${OPENCODE_INSTALL_URL:-https://opencode.ai/install}"
+OPENCODE_INSTALL_URL="${OPENCODE_INSTALL_URL:-https://opencode.ai/v2/install}"
+OPENCODE_MAJOR_VERSION="${OPENCODE_MAJOR_VERSION:-2}"
 CREATE_SWAP_GB="${CREATE_SWAP_GB:-0}"
 CONFIGURE_UFW="${CONFIGURE_UFW:-0}"
 ALLOW_WEB="${ALLOW_WEB:-1}"
@@ -37,9 +38,7 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y \
-  ca-certificates curl wget git openssh-server bash tar unzip zip jq rsync tmux htop \
-  gnupg lsb-release build-essential ufw openssl
+apt-get install -y   ca-certificates curl wget git openssh-server bash tar unzip zip jq rsync tmux htop   gnupg lsb-release build-essential ufw openssl
 
 if [[ "$INSTALL_GH" == "1" ]]; then
   if apt-cache show gh >/dev/null 2>&1; then
@@ -96,12 +95,22 @@ if [[ "$CREATE_SWAP_GB" =~ ^[0-9]+$ ]] && (( CREATE_SWAP_GB > 0 )); then
 fi
 
 if [[ "$INSTALL_OPENCODE" == "1" ]]; then
-  if ! sudo -u "$DEV_USER" -H bash -lc 'command -v opencode >/dev/null 2>&1 || [[ -x "$HOME/.opencode/bin/opencode" ]]'; then
-    echo "Installing OpenCode for $DEV_USER from $OPENCODE_INSTALL_URL"
-    sudo -u "$DEV_USER" -H env OPENCODE_INSTALL_URL="$OPENCODE_INSTALL_URL" bash -lc \
-      'curl -fsSL "$OPENCODE_INSTALL_URL" | bash'
+  CURRENT_VERSION="$(sudo -u "$DEV_USER" -H bash -lc '
+    if command -v opencode >/dev/null 2>&1; then opencode --version 2>/dev/null || true;
+    elif [[ -x "$HOME/.opencode/bin/opencode" ]]; then "$HOME/.opencode/bin/opencode" --version 2>/dev/null || true;
+    fi
+  ')"
+
+  if [[ "$CURRENT_VERSION" == "$OPENCODE_MAJOR_VERSION".* ]]; then
+    echo "OpenCode V$OPENCODE_MAJOR_VERSION already installed: $CURRENT_VERSION"
   else
-    echo "OpenCode already installed for $DEV_USER."
+    if [[ -n "$CURRENT_VERSION" ]]; then
+      echo "Replacing OpenCode $CURRENT_VERSION with V$OPENCODE_MAJOR_VERSION."
+      echo "No backup is created by this script."
+    else
+      echo "Installing OpenCode V$OPENCODE_MAJOR_VERSION for $DEV_USER."
+    fi
+    sudo -u "$DEV_USER" -H env OPENCODE_INSTALL_URL="$OPENCODE_INSTALL_URL" bash -lc       'curl -fsSL "$OPENCODE_INSTALL_URL" | bash'
   fi
 fi
 
