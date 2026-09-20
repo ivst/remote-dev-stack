@@ -10,6 +10,7 @@ fi
 DEV_USER="${DEV_USER:-developer}"
 PROJECTS_DIR="${PROJECTS_DIR:-/home/$DEV_USER/projects}"
 OPENCODE_PORT="${OPENCODE_PORT:-4096}"
+OPENCODE_MAJOR_VERSION="${OPENCODE_MAJOR_VERSION:-2}"
 
 ok()   { printf 'OK   %s\n' "$*"; }
 warn() { printf 'WARN %s\n' "$*"; }
@@ -77,11 +78,7 @@ if command -v gh >/dev/null 2>&1; then
   ok "GitHub CLI installed: $(gh --version 2>/dev/null | head -n1)"
   if id "$DEV_USER" >/dev/null 2>&1 && run_as_dev gh auth status --hostname github.com >/dev/null 2>&1; then
     GH_LOGIN="$(run_as_dev gh api user --jq .login 2>/dev/null || true)"
-    if [[ -n "$GH_LOGIN" ]]; then
-      ok "gh authenticated as $GH_LOGIN"
-    else
-      ok "gh authentication is active for $DEV_USER"
-    fi
+    [[ -n "$GH_LOGIN" ]] && ok "gh authenticated as $GH_LOGIN" || ok "gh authentication is active for $DEV_USER"
   else
     warn "gh is installed but not authenticated for $DEV_USER; run scripts/setup-github-cli.sh as that user"
   fi
@@ -99,9 +96,21 @@ else
 fi
 
 echo
-echo "== OpenCode =="
+echo "== OpenCode V2 =="
+OPENCODE_BIN="$(run_as_dev bash -lc 'command -v opencode 2>/dev/null || { [[ -x "$HOME/.opencode/bin/opencode" ]] && echo "$HOME/.opencode/bin/opencode"; }' 2>/dev/null || true)"
+if [[ -n "$OPENCODE_BIN" ]]; then
+  OC_VERSION="$(run_as_dev "$OPENCODE_BIN" --version 2>/dev/null || true)"
+  if [[ "$OC_VERSION" == "$OPENCODE_MAJOR_VERSION".* ]]; then
+    ok "OpenCode V$OPENCODE_MAJOR_VERSION installed: $OC_VERSION"
+  else
+    warn "OpenCode version is $OC_VERSION; expected V$OPENCODE_MAJOR_VERSION"
+  fi
+else
+  fail "OpenCode executable not found for $DEV_USER"
+fi
+
 if systemctl cat opencode >/dev/null 2>&1; then
-  if systemctl is-active --quiet opencode; then ok "opencode service active"; else fail "opencode service installed but inactive"; fi
+  if systemctl is-active --quiet opencode; then ok "opencode systemd service active"; else fail "opencode systemd service installed but inactive"; fi
   WD="$(systemctl show opencode -p WorkingDirectory --value 2>/dev/null)"
   [[ "$WD" == "$PROJECTS_DIR" ]] && ok "WorkingDirectory=$WD" || warn "WorkingDirectory=$WD (expected $PROJECTS_DIR)"
 else
@@ -123,3 +132,4 @@ echo "== Recommendation =="
 echo "VS Code Remote SSH: remote desktop VS Code installation is not required."
 echo "JetBrains Remote Development: keep SFTP enabled; local SSD and swap are recommended."
 echo "GitHub: keep Git transport on SSH; use gh authentication for PR/issues/API operations."
+echo "OpenCode V2: use 'opencode --server http://127.0.0.1:$OPENCODE_PORT' for the terminal client."
