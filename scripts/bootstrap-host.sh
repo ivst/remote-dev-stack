@@ -26,6 +26,10 @@ CONFIGURE_UFW="${CONFIGURE_UFW:-0}"
 ALLOW_WEB="${ALLOW_WEB:-1}"
 SSH_ALLOW_CIDRS="${SSH_ALLOW_CIDRS:-}"
 
+extract_semver() {
+  grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1
+}
+
 if [[ $EUID -ne 0 ]]; then
   echo "Run with sudo/root: sudo $0 $MODE" >&2
   exit 1
@@ -95,17 +99,19 @@ if [[ "$CREATE_SWAP_GB" =~ ^[0-9]+$ ]] && (( CREATE_SWAP_GB > 0 )); then
 fi
 
 if [[ "$INSTALL_OPENCODE" == "1" ]]; then
-  CURRENT_VERSION="$(sudo -u "$DEV_USER" -H bash -lc '
+  CURRENT_VERSION_RAW="$(sudo -u "$DEV_USER" -H bash -lc '
     if command -v opencode >/dev/null 2>&1; then opencode --version 2>/dev/null || true;
     elif [[ -x "$HOME/.opencode/bin/opencode" ]]; then "$HOME/.opencode/bin/opencode" --version 2>/dev/null || true;
     fi
   ')"
+  CURRENT_VERSION="$(printf '%s\n' "$CURRENT_VERSION_RAW" | extract_semver || true)"
+  CURRENT_MAJOR="${CURRENT_VERSION%%.*}"
 
-  if [[ "$CURRENT_VERSION" == "$OPENCODE_MAJOR_VERSION".* ]]; then
-    echo "OpenCode V$OPENCODE_MAJOR_VERSION already installed: $CURRENT_VERSION"
+  if [[ -n "$CURRENT_VERSION" && "$CURRENT_MAJOR" == "$OPENCODE_MAJOR_VERSION" ]]; then
+    echo "OpenCode V$OPENCODE_MAJOR_VERSION already installed: $CURRENT_VERSION_RAW"
   else
-    if [[ -n "$CURRENT_VERSION" ]]; then
-      echo "Replacing OpenCode $CURRENT_VERSION with V$OPENCODE_MAJOR_VERSION."
+    if [[ -n "$CURRENT_VERSION_RAW" ]]; then
+      echo "Replacing OpenCode $CURRENT_VERSION_RAW with V$OPENCODE_MAJOR_VERSION."
       echo "No backup is created by this script."
     else
       echo "Installing OpenCode V$OPENCODE_MAJOR_VERSION for $DEV_USER."
