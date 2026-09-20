@@ -16,6 +16,10 @@ ok()   { printf 'OK   %s\n' "$*"; }
 warn() { printf 'WARN %s\n' "$*"; }
 fail() { printf 'FAIL %s\n' "$*"; }
 
+extract_semver() {
+  grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1
+}
+
 run_as_dev() {
   if [[ "$(id -un)" == "$DEV_USER" ]]; then
     "$@"
@@ -99,11 +103,13 @@ echo
 echo "== OpenCode V2 =="
 OPENCODE_BIN="$(run_as_dev bash -lc 'command -v opencode 2>/dev/null || { [[ -x "$HOME/.opencode/bin/opencode" ]] && echo "$HOME/.opencode/bin/opencode"; }' 2>/dev/null || true)"
 if [[ -n "$OPENCODE_BIN" ]]; then
-  OC_VERSION="$(run_as_dev "$OPENCODE_BIN" --version 2>/dev/null || true)"
-  if [[ "$OC_VERSION" == "$OPENCODE_MAJOR_VERSION".* ]]; then
-    ok "OpenCode V$OPENCODE_MAJOR_VERSION installed: $OC_VERSION"
+  OC_VERSION_RAW="$(run_as_dev "$OPENCODE_BIN" --version 2>/dev/null || true)"
+  OC_VERSION="$(printf '%s\n' "$OC_VERSION_RAW" | extract_semver || true)"
+  OC_MAJOR="${OC_VERSION%%.*}"
+  if [[ -n "$OC_VERSION" && "$OC_MAJOR" == "$OPENCODE_MAJOR_VERSION" ]]; then
+    ok "OpenCode V$OPENCODE_MAJOR_VERSION installed: $OC_VERSION_RAW"
   else
-    warn "OpenCode version is $OC_VERSION; expected V$OPENCODE_MAJOR_VERSION"
+    warn "OpenCode version is $OC_VERSION_RAW; expected V$OPENCODE_MAJOR_VERSION"
   fi
 else
   fail "OpenCode executable not found for $DEV_USER"
