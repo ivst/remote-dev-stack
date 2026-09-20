@@ -14,6 +14,10 @@ OPENCODE_USERNAME="${OPENCODE_USERNAME:-opencode}"
 OPENCODE_SERVER_PASSWORD="${OPENCODE_SERVER_PASSWORD:-}"
 OPENCODE_MAJOR_VERSION="${OPENCODE_MAJOR_VERSION:-2}"
 
+extract_semver() {
+  grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1
+}
+
 if [[ $EUID -ne 0 ]]; then
   echo "Run with sudo/root: sudo $0" >&2
   exit 1
@@ -37,9 +41,11 @@ if [[ -z "$OPENCODE_BIN" || ! -x "$OPENCODE_BIN" ]]; then
   exit 1
 fi
 
-OPENCODE_VERSION="$(sudo -u "$DEV_USER" -H "$OPENCODE_BIN" --version 2>/dev/null || true)"
-if [[ "$OPENCODE_VERSION" != "$OPENCODE_MAJOR_VERSION".* ]]; then
-  echo "OpenCode $OPENCODE_VERSION is installed; this stack expects V$OPENCODE_MAJOR_VERSION." >&2
+OPENCODE_VERSION_RAW="$(sudo -u "$DEV_USER" -H "$OPENCODE_BIN" --version 2>/dev/null || true)"
+OPENCODE_VERSION="$(printf '%s\n' "$OPENCODE_VERSION_RAW" | extract_semver || true)"
+OPENCODE_MAJOR="${OPENCODE_VERSION%%.*}"
+if [[ -z "$OPENCODE_VERSION" || "$OPENCODE_MAJOR" != "$OPENCODE_MAJOR_VERSION" ]]; then
+  echo "OpenCode $OPENCODE_VERSION_RAW is installed; this stack expects V$OPENCODE_MAJOR_VERSION." >&2
   echo "Run: sudo $ROOT_DIR/scripts/upgrade-opencode-v2.sh" >&2
   exit 1
 fi
@@ -94,7 +100,7 @@ systemctl --no-pager --full status opencode || true
 
 echo
 echo "OpenCode V2 service installed."
-echo "Version: $OPENCODE_VERSION"
+echo "Version: $OPENCODE_VERSION_RAW"
 echo "URL on host: http://127.0.0.1:$OPENCODE_PORT"
 echo "Credentials: $ENV_FILE (mode 0600; password not printed)"
 echo "WorkingDirectory: $PROJECTS_DIR"
