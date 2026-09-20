@@ -11,6 +11,10 @@ DEV_USER="${DEV_USER:-developer}"
 OPENCODE_INSTALL_URL="${OPENCODE_INSTALL_URL:-https://opencode.ai/v2/install}"
 OPENCODE_MAJOR_VERSION="${OPENCODE_MAJOR_VERSION:-2}"
 
+extract_semver() {
+  grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1
+}
+
 if [[ $EUID -ne 0 ]]; then
   echo "Run with sudo/root: sudo $0" >&2
   exit 1
@@ -22,13 +26,14 @@ if ! id "$DEV_USER" >/dev/null 2>&1; then
 fi
 
 DEV_HOME="$(getent passwd "$DEV_USER" | cut -d: -f6)"
-OLD_VERSION="$(sudo -u "$DEV_USER" -H bash -lc '
+OLD_VERSION_RAW="$(sudo -u "$DEV_USER" -H bash -lc '
   if command -v opencode >/dev/null 2>&1; then opencode --version 2>/dev/null || true;
   elif [[ -x "$HOME/.opencode/bin/opencode" ]]; then "$HOME/.opencode/bin/opencode" --version 2>/dev/null || true;
   fi
 ')"
+OLD_VERSION="$(printf '%s\n' "$OLD_VERSION_RAW" | extract_semver || true)"
 
-echo "Current OpenCode: ${OLD_VERSION:-not found}"
+echo "Current OpenCode: ${OLD_VERSION_RAW:-not found}"
 echo "Target: OpenCode V$OPENCODE_MAJOR_VERSION"
 echo "Installer: $OPENCODE_INSTALL_URL"
 echo
@@ -50,14 +55,17 @@ if [[ -z "$OPENCODE_BIN" || ! -x "$OPENCODE_BIN" ]]; then
   exit 1
 fi
 
-NEW_VERSION="$(sudo -u "$DEV_USER" -H "$OPENCODE_BIN" --version)"
-if [[ "$NEW_VERSION" != "$OPENCODE_MAJOR_VERSION".* ]]; then
-  echo "Unexpected OpenCode version after install: $NEW_VERSION" >&2
+NEW_VERSION_RAW="$(sudo -u "$DEV_USER" -H "$OPENCODE_BIN" --version)"
+NEW_VERSION="$(printf '%s\n' "$NEW_VERSION_RAW" | extract_semver || true)"
+NEW_MAJOR="${NEW_VERSION%%.*}"
+
+if [[ -z "$NEW_VERSION" || "$NEW_MAJOR" != "$OPENCODE_MAJOR_VERSION" ]]; then
+  echo "Unexpected OpenCode version after install: $NEW_VERSION_RAW" >&2
   echo "Service was not restarted." >&2
   exit 1
 fi
 
-echo "Installed OpenCode: $NEW_VERSION"
+echo "Installed OpenCode: $NEW_VERSION_RAW"
 
 if systemctl cat opencode >/dev/null 2>&1; then
   systemctl daemon-reload
