@@ -152,6 +152,7 @@ Do not put GitHub tokens in the repository.
 `.gitignore` reduces accidental commits, but it does not protect secrets that were already tracked or committed. Review staged changes and scan both Git history and the working tree with [Gitleaks](https://github.com/gitleaks/gitleaks) (v8.19+):
 
 ```bash
+git diff --cached
 git diff --cached --check
 gitleaks git --redact --log-opts="--all" .
 gitleaks dir --redact .
