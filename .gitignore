@@ -1,6 +1,18 @@
+# Local environment and machine-specific files
 .env
+.env.*
+!.env.example
 *.local
 *.log
 .DS_Store
 .idea/
 .vscode/
+
+# Credentials, certificates with private keys, and secret files
+*.pem
+*.key
+*.p12
+*.pfx
+*.ppk
+credentials.json
+secrets.json
