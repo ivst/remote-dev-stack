@@ -56,6 +56,8 @@ ExecStart=/home/developer/.opencode/bin/opencode serve --hostname 127.0.0.1 --po
 
 The server is not exposed directly to the Internet.
 
+**Docker security note:** with `INSTALL_DOCKER=1`, the bootstrap script adds `DEV_USER` to the `docker` group. Members can control the Docker daemon and effectively gain root privileges on the host. Use this setup only for trusted development accounts; consider rootless Docker or host isolation for less-trusted users.
+
 ## 3. Existing V1 host → V2, no backup
 
 For the current server, after pulling this repository:
