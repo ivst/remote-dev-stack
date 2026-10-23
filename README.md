@@ -145,6 +145,19 @@ Do not put GitHub tokens in the repository.
 - Publish services through nginx/FASTPANEL.
 - Keep OpenCode Web additionally behind an IP allowlist and/or Cloudflare Access.
 - Never commit `.env`, provider API keys, SSH private keys, OpenCode passwords, GitHub tokens or Cloudflare tokens.
+- **Docker group privilege:** when `INSTALL_DOCKER=1`, `bootstrap-host.sh` adds `DEV_USER` to the `docker` group. Access to the Docker daemon is effectively root-equivalent on the host. Only grant membership to trusted users; for multi-user or untrusted environments consider rootless Docker or stronger host isolation.
+
+### Check for secrets before publishing
+
+`.gitignore` reduces accidental commits, but it does not protect secrets that were already tracked or committed. Review staged changes and scan both Git history and the working tree with [Gitleaks](https://github.com/gitleaks/gitleaks) (v8.19+):
+
+```bash
+git diff --cached --check
+gitleaks git --redact --log-opts="--all" .
+gitleaks dir --redact .
+```
+
+If you find a real credential in Git history, revoke/rotate it before publication. Removing it from the latest commit or adding a `.gitignore` rule is not sufficient.
 
 ## Documentation
 
